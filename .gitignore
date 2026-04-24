@@ -1,20 +1,52 @@
-# Data (VERY IMPORTANT)
+# Data
 data/
 *.rar
+*.gdb/
 *.gdb
 *.img
+*.tif
+*.tiff
+*.csv
+*.parquet
 
-# Models
+# Models / outputs
 *.pt
+*.pth
 *.h5
+reports/checkpoints/
+reports/logs/
+mlruns/
+wandb/
 
 # Python
 __pycache__/
+*.py[codz]
 *.pyc
+*$py.class
 
 # Environments
+.env
+.venv/
 env/
+venv/
+ENV/
 wildfire-gnn/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Tests / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
