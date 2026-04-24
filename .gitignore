@@ -1,0 +1,20 @@
+# Data (VERY IMPORTANT)
+data/
+*.rar
+*.gdb
+*.img
+
+# Models
+*.pt
+*.h5
+
+# Python
+__pycache__/
+*.pyc
+
+# Environments
+env/
+wildfire-gnn/
+
+# Jupyter
+.ipynb_checkpoints/

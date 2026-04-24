@@ -1,0 +1,154 @@
+# configs/gnn_config.yaml
+# ── Master config for wildfire-uncertainty-gnn ────────────────────────────
+# All paths relative to project root.
+# Override individual keys via CLI: --config.training.lr=0.001
+
+# ── Paths ─────────────────────────────────────────────────────────────────
+paths:
+  # Raw raster files (read-only — never modified)
+  raw_dir:              data/raw/FSim_Dataset_Greece_raw_files
+  burn_prob:            data/raw/FSim_Dataset_Greece_raw_files/Burn_Prob.img
+  cfl:                  data/raw/FSim_Dataset_Greece_raw_files/CFL.img
+  fsp_index:            data/raw/FSim_Dataset_Greece_raw_files/FSP_Index.img
+  fuel_models:          data/raw/FSim_Dataset_Greece_raw_files/Fuel_Models.img
+  ignition_prob:        data/raw/FSim_Dataset_Greece_raw_files/Ignition_Prob.img
+  struct_exp_index:     data/raw/FSim_Dataset_Greece_raw_files/Struct_Exp_Index.img
+
+  # DEM (external — downloaded separately)
+  dem:                  data/external/dem_greece.tif
+
+  # Aligned rasters (interim)
+  aligned_dir:          data/interim/aligned
+
+  # Processed outputs
+  baseline_csv:         data/processed/baseline_dataset.csv
+  graph_data:           data/processed/graph_data_enriched.pt
+  graph_data_legacy:    data/processed/graph_data_legacy_7f.pt
+
+  # Feature outputs
+  features_dir:         data/features
+  feature_names:        data/features/feature_names.json
+  spatial_split_path:   data/features/splits_phase54.npz
+  target_transformer:   data/features/target_transformer.pkl
+
+  # Reports
+  figures_dir:          reports/figures
+  tables_dir:           reports/tables
+
+# ── Raster / alignment ────────────────────────────────────────────────────
+raster:
+  reference_layer:      Burn_Prob        # all others aligned to this
+  crs:                  EPSG:2100        # Greek national grid
+  nodata_float:         -3.4028235e+38
+  nodata_uint8:         255
+  resample_method:      bilinear         # for continuous; categorical uses nearest
+  resample_method_cat:  nearest          # for Fuel_Models
+
+# ── Graph construction ────────────────────────────────────────────────────
+graph:
+  n_nodes:              300000           # target — assert after build
+  connectivity:         8                # 4 or 8 neighbor pixel grid
+  node_features:        58               # assert after feature engineering
+  # Feature groups (order preserved in feature_names.json)
+  feature_groups:
+    base_rasters:       [CFL, FSP_Index, Ignition_Prob, Struct_Exp_Index]
+    dem_terrain:        [dem_elevation_m, dem_slope_deg, dem_aspect_sin, dem_aspect_cos, dem_twi]
+    fuel_onehot:        true             # 21 one-hot columns from Fuel_Models
+    interactions:       true             # 3 interaction terms
+    multiscale_stats:   [3, 7, 15]       # kernel sizes for neighborhood stats
+    spatial_gradients:  true             # 6 gradient features
+
+# ── Spatial split ─────────────────────────────────────────────────────────
+split:
+  method:               geographic_block  # NEVER use random on spatial data
+  axis:                 row              # split by raster row (north → south)
+  train_rows:           [0, 1327]
+  val_rows:             [1328, 1517]
+  test_rows:            [1518, 1897]
+  # Expected counts (assert after build)
+  train_n:              264456
+  val_n:                11357
+  test_n:               24187
+
+# ── Target ────────────────────────────────────────────────────────────────
+target:
+  column:               Burn_Prob
+  transform:            quantile_normal  # QuantileTransformer(output_distribution='normal')
+  # NOTE: data.y is ALREADY transformed — do NOT re-apply at eval time
+  # Use target_transformer.pkl for inverse transform before reporting metrics
+
+# ── Feature engineering (optional extras, controlled by flags) ────────────
+feature_engineering:
+  add_degree_feature:         false
+  add_neighborhood_features:  false
+  neighborhood_aggs:          [mean, std, max]
+
+# ── Model ─────────────────────────────────────────────────────────────────
+model:
+  architecture:         GAT              # GAT | GraphSAGE | GCN
+  in_channels:          58               # must match graph.node_features
+  hidden_channels:      256
+  out_channels:         2                # [mean, log_variance] for Gaussian NLL
+  num_layers:           4
+  heads:                8                # GAT attention heads
+  dropout:              0.3              # also used for MC Dropout at inference
+  residual:             true
+  batch_norm:           true
+
+# ── Uncertainty ───────────────────────────────────────────────────────────
+uncertainty:
+  # Epistemic (MC Dropout)
+  mc_samples:           30              # forward passes at inference
+  # Aleatoric (Gaussian NLL)
+  loss_function:        gaussian_nll    # gaussian_nll | mse | bce
+  # Calibration
+  calibration_method:   temperature_scaling
+  ece_n_bins:           15
+  target_ece:           0.05
+
+# ── Training ─────────────────────────────────────────────────────────────
+training:
+  stage:                stage1          # stage1 (main GNN) | stage2 (calibration) | stage3 (ablation)
+  epochs:               200
+  lr:                   0.001
+  weight_decay:         1.0e-5
+  batch_size:           null            # null = full graph; set int for mini-batch (large graphs)
+  patience:             20              # early stopping patience on val loss
+  min_delta:            0.0001          # min improvement to reset patience counter
+  scheduler:            cosine          # cosine | step | none
+  scheduler_T_max:      200
+  gradient_clip:        1.0
+  seed:                 42
+
+# ── Evaluation ────────────────────────────────────────────────────────────
+evaluation:
+  metrics:              [r2, mae, spearman, ece, brier]
+  binned_by_quantile:   true            # evaluate per burn probability quantile bin
+  n_quantile_bins:      5
+  inverse_transform:    true            # always report in original burn prob scale
+
+# ── Intervention ─────────────────────────────────────────────────────────
+intervention:
+  scenarios:
+    - name:   fuel_reduction_30pct
+      feature: CFL
+      delta:  -0.30                     # multiply CFL by (1 + delta)
+      region: null                      # null = entire graph; or [row_min, row_max, col_min, col_max]
+    - name:   firebreak_strip
+      feature: CFL
+      delta:  -1.0                      # set CFL to 0 in region
+      region: [800, 900, 0, 1886]       # horizontal strip
+    - name:   ignition_suppression
+      feature: Ignition_Prob
+      delta:  -0.50
+      region: null
+  mc_samples:           30              # uncertainty on intervention effect
+
+# ── Logging ───────────────────────────────────────────────────────────────
+logging:
+  use_mlflow:           false
+  mlflow_tracking_uri:  mlruns/
+  experiment_name:      wildfire-gnn
+  log_every_n_epochs:   5
+  save_best_model:      true
+  best_model_metric:    val_loss        # minimize
