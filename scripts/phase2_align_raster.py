@@ -160,7 +160,7 @@ def main():
     if not args.skip_dem:
         if dem_path.exists():
             print("\n  [4b] Extracting DEM terrain features...")
-            from wildfire_gnn.data.dem_features import (
+            from wildfire_gnn.process.dem_features import (
                 extract_dem_features, validate_dem_features
             )
             dem_paths = extract_dem_features(
