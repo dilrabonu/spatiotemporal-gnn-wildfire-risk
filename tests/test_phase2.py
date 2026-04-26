@@ -166,7 +166,7 @@ class TestAlignment:
         ref = make_test_raster(tmp_path / "ref.tif", shape=(50, 50))
         mis = make_test_raster(tmp_path / "mis.tif", shape=(48, 48))
 
-        from wildfire_gnn.data.raster_io import load_raster_stack
+        from wildfire_gnn.process.raster_io import load_raster_stack
         stack = load_raster_stack(
             {"Burn_Prob": ref, "FSP_Index": mis}, verbose=False
         )
@@ -181,7 +181,7 @@ class TestAlignment:
         ref  = make_test_raster(tmp_path / "ref.tif",  crs_epsg=2100)
         diff = make_test_raster(tmp_path / "diff.tif", crs_epsg=4326)
 
-        from wildfire_gnn.data.raster_io import load_raster_stack
+        from wildfire_gnn.process.raster_io import load_raster_stack
         stack = load_raster_stack(
             {"Burn_Prob": ref, "DEM": diff}, verbose=False
         )
