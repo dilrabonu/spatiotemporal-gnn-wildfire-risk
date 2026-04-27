@@ -50,3 +50,4 @@ dist/
 # IDE
 .vscode/
 .idea/dem_env/
+dem_env/
