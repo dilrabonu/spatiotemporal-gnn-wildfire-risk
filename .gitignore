@@ -31,6 +31,7 @@ env/
 venv/
 ENV/
 wildfire-gnn/
+dem_env/
 
 # Jupyter
 .ipynb_checkpoints/
