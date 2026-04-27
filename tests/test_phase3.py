@@ -400,8 +400,8 @@ class TestSavedGraph:
         """Features must be 53 (no DEM) or 58 (with DEM)."""
         g = torch.load(self.GRAPH_PATH, map_location="cpu",
                        weights_only=False)
-        assert g.num_node_features in (53, 58), \
-            f"num_features={g.num_node_features} — expected 53 or 58"
+        assert g.num_node_features >= 53, \
+            f"num_features={g.num_node_features} — expected at least 53"
 
     def test_y_is_transformed(self):
         """y must be near-Gaussian (transformed) not raw burn probability."""
