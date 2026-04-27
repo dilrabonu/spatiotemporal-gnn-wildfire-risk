@@ -70,11 +70,11 @@ graph:
   # After sampling, assert abs(graph.num_nodes - 300000) < 10000
 
   connectivity:         8                 # 8-neighbor pixel grid edges
-  node_features:        58                # assert after feature engineering
+  node_features:        61                # actual graph features: 58 expected + 3 extra fuel categories
   # 58 = 4 base rasters + 5 DEM terrain + 21 fuel one-hot + 3 interactions
   #     + 18 multi-scale stats + 6 spatial gradients + 1 degree = 58
   # NOTE: if DEM unavailable → 53 features (no 5 terrain features)
-  node_features_no_dem: 53               # fallback if dem_greece.tif missing
+  node_features_no_dem: 56   # 61 - 5 DEM features, if DEM unavailable
 
   feature_groups:
     base_rasters:       [CFL, FSP_Index, Ignition_Prob, Struct_Exp_Index]  # 4
@@ -124,7 +124,7 @@ feature_engineering:
 # ── Model ──────────────────────────────────────────────────────────────────
 model:
   architecture:         GAT
-  in_channels:          58               # update to 53 if DEM not available
+  in_channels:          61               # was 58 — must match graph.num_node_features
   hidden_channels:      256
   out_channels:         2                # [mean, log_variance] for Gaussian NLL
   num_layers:           4
