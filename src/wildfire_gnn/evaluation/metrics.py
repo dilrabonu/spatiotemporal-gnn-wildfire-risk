@@ -1,4 +1,3 @@
-# src/wildfire_gnn/evaluation/metrics.py
 """
 Evaluation Framework — Phase 4 of wildfire-uncertainty-gnn.
 
