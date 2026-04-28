@@ -90,20 +90,31 @@ def mae_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 def spearman_rho(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
-    Spearman rank correlation coefficient.
+    Safe Spearman rank correlation.
 
-    Robust to outliers and distribution shape.
-    Particularly appropriate for burn probability because:
-    1. BP is right-skewed — rank correlation is more stable than Pearson
-    2. Wildfire management cares about ranking cells by risk, not exact values
-    3. A model that correctly identifies high-risk cells is useful even if
-       the exact probability values are miscalibrated
+    Avoids scipy.stats.spearmanr crash on some Windows/Anaconda builds.
     """
-    rho, p_val = stats.spearmanr(
-        np.asarray(y_true).ravel(),
-        np.asarray(y_pred).ravel()
-    )
-    return float(rho)
+    y_true = np.asarray(y_true).ravel()
+    y_pred = np.asarray(y_pred).ravel()
+
+    if len(y_true) < 2:
+        return 0.0
+
+    if np.std(y_true) < 1e-12 or np.std(y_pred) < 1e-12:
+        return 0.0
+
+    true_rank = np.argsort(np.argsort(y_true)).astype(np.float64)
+    pred_rank = np.argsort(np.argsort(y_pred)).astype(np.float64)
+
+    true_rank = true_rank - true_rank.mean()
+    pred_rank = pred_rank - pred_rank.mean()
+
+    denom = np.sqrt(np.sum(true_rank ** 2) * np.sum(pred_rank ** 2))
+
+    if denom < 1e-12:
+        return 0.0
+
+    return float(np.sum(true_rank * pred_rank) / denom)
 
 
 def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
