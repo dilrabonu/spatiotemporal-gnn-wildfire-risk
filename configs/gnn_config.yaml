@@ -127,8 +127,8 @@ model:
   in_channels:          61               # was 58 — must match graph.num_node_features
   hidden_channels:      256
   out_channels:         2                # [mean, log_variance] for Gaussian NLL
-  num_layers:           4
-  heads:                8
+  num_layers:           2
+  heads:                4
   dropout:              0.3
   residual:             true
   batch_norm:           true
@@ -136,7 +136,7 @@ model:
 # ── Uncertainty ────────────────────────────────────────────────────────────
 uncertainty:
   mc_samples:           30
-  loss_function:        gaussian_nll
+  loss_function:        mse
   calibration_method:   temperature_scaling
   ece_n_bins:           15
   target_ece:           0.05
@@ -148,7 +148,7 @@ training:
   lr:                   0.001
   weight_decay:         1.0e-5
   batch_size:           1024
-  neighbors:            [10, 10, 10, 10]            
+  neighbors:            [10, 5]            
   patience:             15
   min_delta:            0.0001
   scheduler:            cosine
