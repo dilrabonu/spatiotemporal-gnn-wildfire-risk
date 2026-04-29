@@ -147,8 +147,9 @@ training:
   epochs:               200
   lr:                   0.001
   weight_decay:         1.0e-5
-  batch_size:           null            # null = full ~300k graph on GPU
-  patience:             20
+  batch_size:           1024
+  neighbors:            [10, 10, 10, 10]            
+  patience:             15
   min_delta:            0.0001
   scheduler:            cosine
   scheduler_T_max:      200
