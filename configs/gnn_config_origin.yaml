@@ -1,6 +1,5 @@
-# configs/gnn_config.yaml
 # ── Master config for wildfire-uncertainty-gnn ────────────────────────────
-# Updated after Phase 2 completion (April 2025)
+# Updated after Phase 2 completion 
 # Phase 2 confirmed: 11,789,754 valid cells across full Greece raster
 # Phase 3 strategy: spatial grid subsampling → ~300,000 nodes for GPU feasibility
 # All paths relative to project root.
