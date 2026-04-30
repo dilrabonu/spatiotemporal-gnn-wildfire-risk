@@ -76,7 +76,7 @@ class TestTemperatureScaling:
         n   = 5000
         y   = rng.normal(0, 1, n)
         m   = y + rng.normal(0, 0.1, n)
-        s   = np.full(n, 1.0)   # std matches actual spread
+        s   = np.full(n, 0.1)   # std matches actual spread
         ts  = TemperatureScaling()
         ts.fit(m, s, y)
         assert 0.5 < ts.T < 2.0, f"T={ts.T:.3f} far from 1 for calibrated model"
