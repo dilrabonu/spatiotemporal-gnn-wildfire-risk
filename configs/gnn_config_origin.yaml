@@ -1,0 +1,190 @@
+# configs/gnn_config.yaml
+# ── Master config for wildfire-uncertainty-gnn ────────────────────────────
+# Updated after Phase 2 completion (April 2025)
+# Phase 2 confirmed: 11,789,754 valid cells across full Greece raster
+# Phase 3 strategy: spatial grid subsampling → ~300,000 nodes for GPU feasibility
+# All paths relative to project root.
+
+# ── Paths ─────────────────────────────────────────────────────────────────
+paths:
+  raw_dir:              data/raw/FSim_Dataset_Greece_raw_files
+  burn_prob:            data/raw/FSim_Dataset_Greece_raw_files/Burn_Prob.img
+  cfl:                  data/raw/FSim_Dataset_Greece_raw_files/CFL.img
+  fsp_index:            data/raw/FSim_Dataset_Greece_raw_files/FSP_Index.img
+  fuel_models:          data/raw/FSim_Dataset_Greece_raw_files/Fuel_Models.img
+  ignition_prob:        data/raw/FSim_Dataset_Greece_raw_files/Ignition_Prob.img
+  struct_exp_index:     data/raw/FSim_Dataset_Greece_raw_files/Struct_Exp_Index.img
+  dem:                  data/external/dem_greece.tif        # SRTM — download via scripts/download_dem.py
+
+  aligned_dir:          data/interim/aligned
+  baseline_csv:         data/processed/baseline_dataset.csv
+  graph_data:           data/processed/graph_data_enriched.pt
+  graph_data_legacy:    data/processed/graph_data_legacy_7f.pt
+
+  features_dir:         data/features
+  feature_names:        data/features/feature_names.json
+  spatial_split_path:   data/features/splits_enriched.npz
+  target_transformer:   data/features/target_transformer.pkl
+  valid_cell_mask:      data/features/valid_cell_mask.npy
+
+  figures_dir:          reports/figures
+  tables_dir:           reports/tables
+
+# ── Raster / alignment ─────────────────────────────────────────────────────
+raster:
+  reference_layer:      Burn_Prob
+  crs:                  EPSG:2100
+  nodata_float:         -3.4028235e+38
+  nodata_uint8:         255
+  resample_method:      bilinear
+  resample_method_cat:  nearest           # Fuel_Models — NEVER bilinear
+
+# ── Phase 2 confirmed statistics (do not edit — factual record) ────────────
+phase2_confirmed:
+  total_raster_cells:   57395335          # 7597 × 7555
+  valid_cells_full:     11789754          # confirmed from valid_cell_mask.npy
+  valid_pct:            20.54             # % of raster with valid data in ALL 6 layers
+  nodata_cells:         45605581
+  burn_prob_mean:       0.024167
+  burn_prob_median:     0.012084
+  burn_prob_std:        0.032834
+  burn_prob_skewness:   2.593
+  burn_prob_min:        0.000004
+  burn_prob_max:        0.250882
+  transformer_mean:    -0.0012            # after QuantileTransformer
+  transformer_std:      1.0119
+
+# ── Graph construction ─────────────────────────────────────────────────────
+graph:
+  # ── Sampling strategy ───────────────────────────────────────────────────
+  # Full valid-cell count = 11,789,754 (Phase 2 confirmed)
+  # An 11.8M-node GAT graph is too large for single-GPU training.
+  # Strategy: SPATIAL GRID SUBSAMPLING
+  #   Take every sample_stride-th valid cell from the valid_cell_mask.
+  #   stride=6 → ~300k nodes. Preserves geographic structure.
+  #   This is the same approach used in the validated previous project.
+  sampling_strategy:    spatial_grid      # spatial_grid | full | random
+  sample_stride:        6                 # keep every 6th valid cell (row and col)
+  n_nodes_full:         11789754          # full valid cell count from Phase 2
+  n_nodes:              300000            # target after spatial grid subsampling (≈300k)
+  # After sampling, assert abs(graph.num_nodes - 300000) < 10000
+
+  connectivity:         8                 # 8-neighbor pixel grid edges
+  node_features:        61                # actual graph features: 58 expected + 3 extra fuel categories
+  # 58 = 4 base rasters + 5 DEM terrain + 21 fuel one-hot + 3 interactions
+  #     + 18 multi-scale stats + 6 spatial gradients + 1 degree = 58
+  # NOTE: if DEM unavailable → 53 features (no 5 terrain features)
+  node_features_no_dem: 56   # 61 - 5 DEM features, if DEM unavailable
+
+  feature_groups:
+    base_rasters:       [CFL, FSP_Index, Ignition_Prob, Struct_Exp_Index]  # 4
+    dem_terrain:        [dem_elevation_m, dem_slope_deg, dem_aspect_sin, dem_aspect_cos, dem_twi]  # 5
+    fuel_onehot:        true             # 21 one-hot columns
+    interactions:       true             # 3 interaction terms (CFL×Ignition, FSP×CFL, Ignition×FSP)
+    multiscale_stats:   [3, 7, 15]       # 6 stats (mean+std) × 3 kernels = 18 features
+    spatial_gradients:  true             # 6 gradient features (dx,dy for 3 features)
+    degree_feature:     false            # node degree — off by default
+
+# ── Spatial split ──────────────────────────────────────────────────────────
+# Split is defined by ORIGINAL RASTER ROW indices (not subsampled indices).
+# Geographic block: north → south (EPSG:2100, row 0 = northernmost)
+# The ~300k subsampled nodes are split proportionally within these row bands.
+split:
+  method:               geographic_block
+  axis:                 row
+  # Row ranges in ORIGINAL raster space (7597 total rows)
+  train_rows:           [0, 1327]        # northern Greece + islands (≈88% of nodes)
+  val_rows:             [1328, 1517]     # narrow validation band  (≈4% of nodes)
+  test_rows:            [1518, 7596]     # southern Greece + Aegean + Crete (≈8% of nodes)
+  # Expected node counts AFTER subsampling (~300k total):
+  train_n:              264000           # approximate — assert > 240000
+  val_n:                12000            # approximate — assert > 5000
+  test_n:               24000           # approximate — assert > 15000
+  # Hard assertions (run before any training):
+  # assert (train_mask & val_mask).sum() == 0   "Train/Val overlap!"
+  # assert (train_mask & test_mask).sum() == 0  "Train/Test overlap!"
+  # assert (val_mask | train_mask | test_mask).all() "Not all nodes covered!"
+
+# ── Target ─────────────────────────────────────────────────────────────────
+target:
+  column:               Burn_Prob
+  transform:            quantile_normal
+  # CRITICAL: data.y is ALREADY transformed after graph construction.
+  # DO NOT re-apply transform() at inference. ONLY call inverse_transform()
+  # before computing R², MAE, Spearman ρ, or any published metric.
+  # Guard: assert abs(float(data.y.mean())) < 0.5
+  # Guard: assert 0.5 < float(data.y.std()) < 2.0
+
+# ── Feature engineering ────────────────────────────────────────────────────
+feature_engineering:
+  add_degree_feature:         false
+  add_neighborhood_features:  false
+  neighborhood_aggs:          [mean, std, max]
+
+# ── Model ──────────────────────────────────────────────────────────────────
+model:
+  architecture:         GAT
+  in_channels:          61               # was 58 — must match graph.num_node_features
+  hidden_channels:      256
+  out_channels:         2                # [mean, log_variance] for Gaussian NLL
+  num_layers:           2
+  heads:                4
+  dropout:              0.3
+  residual:             true
+  batch_norm:           true
+
+# ── Uncertainty ────────────────────────────────────────────────────────────
+uncertainty:
+  mc_samples:           30
+  loss_function:        mse
+  calibration_method:   temperature_scaling
+  ece_n_bins:           15
+  target_ece:           0.05
+
+# ── Training ───────────────────────────────────────────────────────────────
+training:
+  stage:                stage1
+  epochs:               200
+  lr:                   0.001
+  weight_decay:         1.0e-5
+  batch_size:           1024
+  neighbors:            [10, 5]            
+  patience:             15
+  min_delta:            0.0001
+  scheduler:            cosine
+  scheduler_T_max:      200
+  gradient_clip:        1.0
+  seed:                 42
+
+# ── Evaluation ─────────────────────────────────────────────────────────────
+evaluation:
+  metrics:              [r2, mae, spearman, ece, brier]
+  binned_by_quantile:   true
+  n_quantile_bins:      5
+  inverse_transform:    true
+
+# ── Intervention ───────────────────────────────────────────────────────────
+intervention:
+  scenarios:
+    - name:   fuel_reduction_30pct
+      feature: CFL
+      delta:  -0.30
+      region: null
+    - name:   firebreak_strip
+      feature: CFL
+      delta:  -1.0
+      region: [800, 900, 0, 7554]       # full-width horizontal strip
+    - name:   ignition_suppression
+      feature: Ignition_Prob
+      delta:  -0.50
+      region: null
+  mc_samples:           30
+
+# ── Logging ────────────────────────────────────────────────────────────────
+logging:
+  use_mlflow:           false
+  mlflow_tracking_uri:  mlruns/
+  experiment_name:      wildfire-gnn
+  log_every_n_epochs:   5
+  save_best_model:      true
+  best_model_metric:    val_loss
