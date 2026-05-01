@@ -618,7 +618,7 @@ def fig6_calibration():
         sub = sub.sort_values("sort")
         cols_bar = [color_map_ece(m) for m in sub["model"]]
         ax3.bar(sub["model"].map(LABEL).fillna(sub["model"]),
-                sub["ece"], color=cols_bar, alpha=0.85, height=0.7)
+                sub["ece"], color=cols_bar, alpha=0.85)
         ax3.axhline(0.05, color="red", lw=1.5, ls="--",
                     label="ECE=0.05 threshold")
         ax3.set_ylabel("ECE (Expected Calibration Error)")
