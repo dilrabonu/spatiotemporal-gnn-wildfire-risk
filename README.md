@@ -424,3 +424,5 @@ MIT License — see [`LICENSE`](LICENSE) for details.
 Author
 
 Dilrabo Khidirova
+
+LinkedIn: https://www.linkedin.com/in/dilrabo-khidirova-3144b8244/ 
