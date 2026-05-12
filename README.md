@@ -420,3 +420,6 @@ MIT License — see [`LICENSE`](LICENSE) for details.
 **FSim Dataset Greece · EPSG:2100 · 327,405 nodes · GAT R²=0.766**
 
 </div>
+
+Author
+
