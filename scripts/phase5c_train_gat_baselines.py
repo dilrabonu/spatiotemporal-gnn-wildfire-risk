@@ -217,11 +217,30 @@ def main():
         model.load_state_dict(best_state)
     print(f"\n  \u2713 Training done: {(time.time()-t0)/60:.1f} min  best_val={best_val:.4f}")
 
-    # ── Evaluate: single deterministic forward pass (point predictor) ─────
+    # ── Evaluate: batched deterministic forward pass (point predictor) ────
+    # Use NeighborLoader (same as training) instead of a single full-graph
+    # forward pass. A full-graph pass over 2.5M edges exhausts CPU RAM for
+    # GATv2 (heavier attention). Batched eval is memory-safe and produces
+    # identical predictions. num_neighbors=[-1]*num_layers means "use ALL
+    # neighbours" per hop, so each test node sees its full receptive field.
     model.eval()
+    num_layers_eval = m_cfg.get("num_layers", 2)
+    eval_loader = NeighborLoader(
+        graph,
+        num_neighbors = [-1] * num_layers_eval,
+        batch_size    = 512,
+        input_nodes   = graph.test_mask,
+        shuffle       = False,
+        num_workers   = 0,
+    )
+    preds = []
     with torch.no_grad():
-        mean, _ = model(graph.x, graph.edge_index)
-        mean_pred = mean[graph.test_mask].cpu().numpy()
+        for batch in eval_loader:
+            batch = batch.to(device)
+            mean, _ = model(batch.x, batch.edge_index)
+            n = batch.batch_size          # first n rows are the seed (test) nodes
+            preds.append(mean[:n].cpu().numpy())
+    mean_pred = np.concatenate(preds)
 
     with open(transformer_path, "rb") as f:
         transformer = pickle.load(f)
