@@ -403,7 +403,10 @@ If you use this code or results in your research, please cite:
   note    = {Under review}
 }
 ```
+# Original dataset
+https://zenodo.org/records/17579289?jr_id=l_null
 
+https://www.sciencedirect.com/science/article/pii/S2352340925010248 
 ---
 
 ## License
@@ -417,3 +420,9 @@ MIT License — see [`LICENSE`](LICENSE) for details.
 **FSim Dataset Greece · EPSG:2100 · 327,405 nodes · GAT R²=0.766**
 
 </div>
+
+Author
+
+Dilrabo Khidirova
+
+LinkedIn: https://www.linkedin.com/in/dilrabo-khidirova-3144b8244/ 
