@@ -37,8 +37,8 @@ WHY MC DROPOUT (Gap 2)
 Keeping dropout ON at inference and running 20+ forward passes
 gives epistemic uncertainty (model uncertainty about weights).
   predictions = [model(x) for _ in range(20)]
-  mean = np.mean(predictions)  ← final prediction
-  std  = np.std(predictions)   ← epistemic uncertainty
+  mean = np.mean(predictions)  <- final prediction
+  std  = np.std(predictions)   <- epistemic uncertainty
 This enables calibrated uncertainty intervals — Gap 2.
 
 ARCHITECTURE DETAILS
@@ -54,7 +54,7 @@ ARCHITECTURE DETAILS
 
 KNOWN FAILURE FROM PREVIOUS PROJECT
 -------------------------------------
-val_loss plateau ≈ 0.88 with train_loss 0.56 = generalization gap.
+val_loss plateau ~ 0.88 with train_loss 0.56 = generalization gap.
 Solutions implemented here:
   1. Residual connections prevent vanishing gradients
   2. Batch normalization stabilizes training
@@ -76,7 +76,7 @@ from torch import Tensor
 
 class ResidualBlock(nn.Module):
     """
-    Linear → BatchNorm → ReLU → Dropout with residual connection.
+    Linear -> BatchNorm -> ReLU -> Dropout with residual connection.
     Used in all GNN architectures between message-passing layers.
     """
     def __init__(self, in_dim: int, out_dim: int, dropout: float = 0.3):
@@ -114,6 +114,7 @@ class GaussianNLLHead(nn.Module):
         log_var = torch.clamp(log_var, min=-10.0, max=10.0)
         return mean, log_var
 
+
 class RegressionHead(nn.Module):
     """
     PHASE 5C — single-output regression head for the VANILLA baselines.
@@ -131,6 +132,7 @@ class RegressionHead(nn.Module):
         mean = self.mean_head(x).squeeze(-1)
         return mean, torch.zeros_like(mean)
 
+
 # ════════════════════════════════════════════════════════════════════════════
 # 1. GAT — Graph Attention Network (PRIMARY)
 # ════════════════════════════════════════════════════════════════════════════
@@ -140,17 +142,18 @@ class GATWildfire(nn.Module):
     Graph Attention Network for wildfire burn probability prediction.
 
     Architecture:
-      Input projection → 4 GAT layers → output head
+      Input projection -> 4 GAT layers -> output head
       Each GAT layer: multi-head attention + residual + BN + dropout
 
     Parameters
     ----------
     in_channels  : 61 (graph.num_node_features)
     hidden       : 256
-    out_dim_head : 128 (pre-head dimension)
     num_layers   : 4
     heads        : 8 (attention heads)
     dropout      : 0.3 (also used for MC Dropout at inference)
+    head_type    : "gaussian_nll" (default, existing behaviour) or
+                   "regression" (Phase 5C vanilla baseline, MSE point predictor)
     """
     def __init__(
         self,
@@ -159,6 +162,7 @@ class GATWildfire(nn.Module):
         num_layers:  int  = 4,
         heads:       int  = 8,
         dropout:     float = 0.3,
+        head_type:   str  = "gaussian_nll",
     ):
         super().__init__()
         try:
@@ -166,8 +170,9 @@ class GATWildfire(nn.Module):
         except ImportError:
             raise ImportError("pip install torch-geometric")
 
-        self.dropout = dropout
-        self.name    = "GAT"
+        self.dropout   = dropout
+        self.head_type = head_type
+        self.name      = "GAT" if head_type == "gaussian_nll" else "GAT_vanilla"
 
         # Input projection
         self.input_proj = nn.Sequential(
@@ -183,7 +188,7 @@ class GATWildfire(nn.Module):
         self.projs = nn.ModuleList()
 
         for i in range(num_layers):
-            # Each GAT layer: hidden → hidden (concat heads then project)
+            # Each GAT layer: hidden -> hidden (concat heads then project)
             conv = GATConv(
                 in_channels  = hidden,
                 out_channels = hidden // heads,
@@ -198,7 +203,8 @@ class GATWildfire(nn.Module):
             self.projs.append(nn.Identity())
 
         # Output head
-        self.head = GaussianNLLHead(hidden)
+        self.head = (GaussianNLLHead(hidden) if head_type == "gaussian_nll"
+                     else RegressionHead(hidden))
 
     def forward(
         self,
@@ -231,6 +237,8 @@ class GATWildfire(nn.Module):
 
         mean, log_var = self.head(h)
         return mean, log_var
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # 1b. GATv2 — Dynamic attention (PHASE 5C baseline)
 # ════════════════════════════════════════════════════════════════════════════
@@ -304,6 +312,7 @@ class GATv2Wildfire(nn.Module):
             h        = h + residual
         mean, log_var = self.head(h)
         return mean, log_var
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # 2. GCN — Graph Convolutional Network (ablation: no attention)
@@ -419,22 +428,25 @@ def build_model(
     num_layers:   int  = 4,
     heads:        int  = 8,
     dropout:      float = 0.3,
+    head_type:    str | None = None,
 ) -> nn.Module:
     """
     Build a GNN model by name.
 
     Parameters
     ----------
-    architecture : "GAT" | "GCN" | "GraphSAGE"
+    architecture : "GAT" | "GCN" | "GraphSAGE" | "GAT_vanilla" | "GATv2"
     in_channels  : must match graph.num_node_features (61 after Phase 3)
     hidden       : hidden dimension
     num_layers   : number of message-passing layers
-    heads        : attention heads (GAT only)
+    heads        : attention heads (GAT / GATv2 only)
     dropout      : dropout rate (same rate used for MC Dropout at inference)
+    head_type    : None uses each architecture's default. For GAT the default
+                   is "gaussian_nll"; for GAT_vanilla / GATv2 it is "regression".
 
     Returns
     -------
-    nn.Module with forward(x, edge_index) → (mean, log_var)
+    nn.Module with forward(x, edge_index) -> (mean, log_var)
     """
     arch = architecture.upper().replace("-", "").replace("_", "")
 
@@ -442,6 +454,19 @@ def build_model(
         return GATWildfire(
             in_channels=in_channels, hidden=hidden,
             num_layers=num_layers, heads=heads, dropout=dropout,
+            head_type=head_type or "gaussian_nll",
+        )
+    elif arch == "GATVANILLA":
+        return GATWildfire(
+            in_channels=in_channels, hidden=hidden,
+            num_layers=num_layers, heads=heads, dropout=dropout,
+            head_type=head_type or "regression",
+        )
+    elif arch == "GATV2":
+        return GATv2Wildfire(
+            in_channels=in_channels, hidden=hidden,
+            num_layers=num_layers, heads=heads, dropout=dropout,
+            head_type=head_type or "regression",
         )
     elif arch == "GCN":
         return GCNWildfire(
@@ -455,7 +480,7 @@ def build_model(
         )
     else:
         raise ValueError(f"Unknown architecture: {architecture}. "
-                         f"Choose from: GAT, GCN, GraphSAGE")
+                         f"Choose from: GAT, GCN, GraphSAGE, GAT_vanilla, GATv2")
 
 
 def gaussian_nll_loss(
