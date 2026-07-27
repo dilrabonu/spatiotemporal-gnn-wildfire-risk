@@ -7,6 +7,13 @@ THREE ARCHITECTURES (for ablation study)
 2. GCN  — Graph Convolutional Net  (ablation: no attention)
 3. GraphSAGE                       (ablation: inductive aggregation)
 
+PHASE 5C ADDITIONS (purely additive — nothing above is changed)
+---------------------------------------------------------------
+4. RegressionHead   — single-output head for vanilla point-prediction baselines
+5. GATWildfire.head_type — optional; defaults to "gaussian_nll" (existing behaviour)
+6. GATv2Wildfire    — same backbone as GAT but GATv2Conv (dynamic attention)
+7. build_model      — now also recognises "GAT_vanilla" and "GATv2"
+
 WHY GAT IS PRIMARY
 ------------------
 GAT learns PER-NEIGHBOR ATTENTION WEIGHTS. For wildfire spread,
