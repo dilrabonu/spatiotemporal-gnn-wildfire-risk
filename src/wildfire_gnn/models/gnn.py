@@ -114,6 +114,22 @@ class GaussianNLLHead(nn.Module):
         log_var = torch.clamp(log_var, min=-10.0, max=10.0)
         return mean, log_var
 
+class RegressionHead(nn.Module):
+    """
+    PHASE 5C — single-output regression head for the VANILLA baselines.
+
+    Returns (mean, log_var) with log_var = zeros, so it is a drop-in
+    replacement for GaussianNLLHead with the identical forward() signature.
+    The zeros are a placeholder and are never used: the vanilla model is a
+    point predictor trained with MSE (Gap 1 machinery deliberately removed).
+    """
+    def __init__(self, in_dim: int):
+        super().__init__()
+        self.mean_head = nn.Linear(in_dim, 1)
+
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        mean = self.mean_head(x).squeeze(-1)
+        return mean, torch.zeros_like(mean)
 
 # ════════════════════════════════════════════════════════════════════════════
 # 1. GAT — Graph Attention Network (PRIMARY)
