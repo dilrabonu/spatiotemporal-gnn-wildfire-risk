@@ -231,7 +231,79 @@ class GATWildfire(nn.Module):
 
         mean, log_var = self.head(h)
         return mean, log_var
+# ════════════════════════════════════════════════════════════════════════════
+# 1b. GATv2 — Dynamic attention (PHASE 5C baseline)
+# ════════════════════════════════════════════════════════════════════════════
 
+class GATv2Wildfire(nn.Module):
+    """
+    PHASE 5C — same backbone as GATWildfire but with GATv2Conv, which computes
+    DYNAMIC attention (Brody et al. 2022) instead of the static attention of the
+    original GAT. Used as a competitive baseline to answer the reviewer question
+    "why GAT and not GATv2?".
+    """
+    def __init__(
+        self,
+        in_channels: int  = 61,
+        hidden:      int  = 256,
+        num_layers:  int  = 4,
+        heads:       int  = 8,
+        dropout:     float = 0.3,
+        head_type:   str  = "gaussian_nll",
+    ):
+        super().__init__()
+        try:
+            from torch_geometric.nn import GATv2Conv
+        except ImportError:
+            raise ImportError("pip install torch-geometric")
+
+        self.dropout   = dropout
+        self.head_type = head_type
+        self.name      = "GATv2" if head_type == "gaussian_nll" else "GATv2_vanilla"
+
+        self.input_proj = nn.Sequential(
+            nn.Linear(in_channels, hidden),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+        )
+
+        self.convs = nn.ModuleList()
+        self.bns   = nn.ModuleList()
+        self.projs = nn.ModuleList()
+
+        for i in range(num_layers):
+            conv = GATv2Conv(
+                in_channels  = hidden,
+                out_channels = hidden // heads,
+                heads        = heads,
+                dropout      = dropout,
+                concat       = True,
+                add_self_loops = True,
+            )
+            self.convs.append(conv)
+            self.bns.append(nn.BatchNorm1d(hidden))
+            self.projs.append(nn.Identity())
+
+        self.head = (GaussianNLLHead(hidden) if head_type == "gaussian_nll"
+                     else RegressionHead(hidden))
+
+    def forward(
+        self,
+        x:          Tensor,
+        edge_index: Tensor,
+        training:   bool = True,
+    ) -> tuple[Tensor, Tensor]:
+        h = self.input_proj(x)
+        for conv, bn, proj in zip(self.convs, self.bns, self.projs):
+            residual = proj(h)
+            h        = conv(h, edge_index)
+            h        = bn(h)
+            h        = F.relu(h)
+            h        = F.dropout(h, p=self.dropout, training=self.training)
+            h        = h + residual
+        mean, log_var = self.head(h)
+        return mean, log_var
 
 # ════════════════════════════════════════════════════════════════════════════
 # 2. GCN — Graph Convolutional Network (ablation: no attention)
