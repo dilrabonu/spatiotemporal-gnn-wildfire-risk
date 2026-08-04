@@ -271,5 +271,3 @@ def main():
     print("=" * 65)
 
 
-if __name__ == "__main__":
-    main()
