@@ -2,11 +2,6 @@
 Publication-Quality Figures — SEPARATED (one plot per PNG)
 ===========================================================
 
-Key differences from paper_figures.py:
-  * Every subplot is saved as its OWN .png with a unique descriptive name
-    (ready for \\includegraphics in Overleaf, one figure per file).
-  
-
 USAGE
 -----
     conda activate wildfire-gnn
