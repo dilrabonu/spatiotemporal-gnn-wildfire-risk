@@ -5,10 +5,7 @@ Publication-Quality Figures — SEPARATED (one plot per PNG)
 Key differences from paper_figures.py:
   * Every subplot is saved as its OWN .png with a unique descriptive name
     (ready for \\includegraphics in Overleaf, one figure per file).
-  * The word "(ours)" / "(primary)" is removed from all titles/labels/legends.
-  * Figure 3 gets a 4th scatter panel (GATv2), each saved separately.
-  * The full 10-model comparison (incl. GATv2 + GAT vanilla) is used for
-    fig2 / fig9 metric bars.
+  
 
 USAGE
 -----
