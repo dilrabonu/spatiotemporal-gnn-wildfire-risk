@@ -237,7 +237,7 @@ def fig1_geographic_split():
 
 
 # FIGURE 2 — Model comparison (5 metrics -> 5 separate PNGs)
-# ════════════════════════════════════════════════════════════════════════════
+
 
 def _order_models(df: pd.DataFrame) -> pd.DataFrame:
     order = ["GAT", "2D CNN (spatial)", "GCN", "GATv2", "XGBoost",
