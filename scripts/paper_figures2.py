@@ -8,9 +8,6 @@ USAGE
     cd spatiotemporal_wildfire_gnn
     python scripts/paper_figures2.py
 
-Files that need per-node arrays (.npz) — fig1, fig3, fig7, fig8 — are only
-produced if the corresponding .npz / graph file is present; otherwise the
-script prints a clear SKIP note and continues.
 """
 
 from __future__ import annotations
