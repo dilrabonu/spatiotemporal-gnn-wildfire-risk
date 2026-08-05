@@ -1,9 +1,6 @@
 """
 Publication-Quality Figures — SEPARATED (one plot per PNG)
 ===========================================================
-Regenerates every paper figure as INDIVIDUAL single-plot PNG files,
-saved to reports/paper_figures2/ so they never collide with the old
-multi-panel figures in reports/paper_figures/.
 
 Key differences from paper_figures.py:
   * Every subplot is saved as its OWN .png with a unique descriptive name
