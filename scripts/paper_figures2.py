@@ -291,7 +291,7 @@ def fig2_model_comparison():
 
 # ════════════════════════════════════════════════════════════════════════════
 # FIGURE 3 — Prediction scatter (GAT, XGBoost, CNN, GATv2 -> 4 separate PNGs)
-# ════════════════════════════════════════════════════════════════════════════
+
 
 def _r2(y_true, y_pred):
     return 1 - np.sum((y_true - y_pred) ** 2) / np.sum((y_true - y_true.mean()) ** 2)
