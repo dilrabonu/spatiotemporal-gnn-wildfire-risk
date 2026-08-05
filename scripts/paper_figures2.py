@@ -289,7 +289,7 @@ def fig2_model_comparison():
         plt.tight_layout(); save(fig, fname)
 
 
-# ════════════════════════════════════════════════════════════════════════════
+
 # FIGURE 3 — Prediction scatter (GAT, XGBoost, CNN, GATv2 -> 4 separate PNGs)
 
 
