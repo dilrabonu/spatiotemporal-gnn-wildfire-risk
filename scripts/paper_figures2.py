@@ -235,7 +235,7 @@ def fig1_geographic_split():
     plt.tight_layout(); save(fig, "fig1b_geographic_split.png")
 
 
-# ════════════════════════════════════════════════════════════════════════════
+
 # FIGURE 2 — Model comparison (5 metrics -> 5 separate PNGs)
 # ════════════════════════════════════════════════════════════════════════════
 
