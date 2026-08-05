@@ -366,9 +366,8 @@ def fig3_prediction_scatter():
         _skip("fig3d_gatv2_scatter.png", "phase5c_gatv2_preds.npz not found")
 
 
-# ════════════════════════════════════════════════════════════════════════════
+
 # FIGURE 4 — Binned evaluation (2 separate PNGs: line + bin5 bar)
-# ════════════════════════════════════════════════════════════════════════════
 
 def fig4_binned_evaluation():
     print("\n[Fig 4] Binned evaluation — 2 separate PNGs")
