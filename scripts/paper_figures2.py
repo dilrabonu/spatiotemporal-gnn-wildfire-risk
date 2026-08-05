@@ -440,9 +440,9 @@ def fig4_binned_evaluation():
     plt.tight_layout(); save(fig, "fig4b_highrisk_bin5.png")
 
 
-# ════════════════════════════════════════════════════════════════════════════
+
 # FIGURE 5 — Feature importance (RF + XGBoost -> 2 separate PNGs)
-# ════════════════════════════════════════════════════════════════════════════
+
 
 def fig5_feature_importance():
     print("\n[Fig 5] Feature importance — 2 separate PNGs")
