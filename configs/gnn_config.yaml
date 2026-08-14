@@ -154,6 +154,7 @@ training:
   scheduler_T_max:      200
   gradient_clip:        1.0
   seed:                 42
+  nll_warmup_epochs:    10
 
 # ── Evaluation ─────────────────────────────────────────────────────────────
 evaluation:
