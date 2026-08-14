@@ -93,6 +93,9 @@ class GNNPipeline:
         return model
 
     def train(self, data: Data, stage: str = "stage1") -> dict:
+        # <<< dispatch to two-stage NLL when requested
+        if self.config.get("uncertainty", {}).get("two_stage", False):
+            return self.train_two_stage(data)
         t_cfg      = self.config["training"]
         if self.model is None:
             self.build_model()
@@ -229,6 +232,128 @@ class GNNPipeline:
             "history":       pd.DataFrame(self.history),
             "best_val_loss": stopper.best_loss,
             "epochs_run":    epoch,
+        }
+
+
+    def _freeze_mean_head(self):
+        """Freeze everything EXCEPT the variance (logvar) head."""
+        frozen, trainable = 0, 0
+        for name, p in self.model.named_parameters():
+            if "logvar" in name:            # only the variance head trains
+                p.requires_grad = True
+                trainable += p.numel()
+            else:
+                p.requires_grad = False
+                frozen += p.numel()
+        print(f"  Stage 2: froze {frozen:,} params, "
+              f"training only {trainable:,} variance-head params")
+
+    def train_two_stage(self, data: Data) -> dict:
+        """
+        Two-stage Gaussian-NLL training.
+          Stage 1: train the whole model with MSE  -> accurate mean (R2 ~ 0.76)
+          Stage 2: freeze mean, train ONLY the variance head with Gaussian NLL
+        The mean cannot degrade in stage 2 (it is frozen), so accuracy is kept
+        while the variance head learns a genuine NLL-trained uncertainty.
+        """
+        t_cfg      = self.config["training"]
+        if self.model is None:
+            self.build_model()
+        model      = self.model
+        lr         = t_cfg.get("lr", 1e-3)
+        wd         = t_cfg.get("weight_decay", 1e-5)
+        grad_clip  = t_cfg.get("gradient_clip", 1.0)
+        batch_size = int(t_cfg.get("batch_size") or 1024)
+        s1_epochs  = int(t_cfg.get("stage1_epochs", t_cfg.get("epochs", 200)))
+        s2_epochs  = int(t_cfg.get("stage2_epochs", 60))
+        patience   = t_cfg.get("patience", 15)
+        min_delta  = t_cfg.get("min_delta", 1e-4)
+
+        num_layers  = self.config["model"].get("num_layers", 2)
+        neighbors_cfg = t_cfg.get("neighbors", None)
+        num_neighbors_train = (neighbors_cfg if isinstance(neighbors_cfg, list)
+                               else ([10, 5] if num_layers == 2 else [10]*num_layers))
+
+        train_loader = NeighborLoader(
+            data, num_neighbors=num_neighbors_train, batch_size=batch_size,
+            input_nodes=data.train_mask, shuffle=True, num_workers=0)
+        val_loader = NeighborLoader(
+            data, num_neighbors=num_neighbors_train, batch_size=batch_size*2,
+            input_nodes=data.val_mask, shuffle=False, num_workers=0)
+
+        def run_stage(stage_name, n_epochs, loss_kind, params):
+            optimizer = torch.optim.Adam(
+                [p for p in params if p.requires_grad], lr=lr, weight_decay=wd)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=n_epochs)
+            stopper   = EarlyStopping(patience=patience, min_delta=min_delta)
+            print(f"\n  === {stage_name} ({loss_kind}, {n_epochs} epochs) ===")
+            print(f"  {'Epoch':>6}  {'Train Loss':>12}  {'Val Loss':>10}")
+            print(f"  {'-'*35}")
+            t0 = time.time()
+            last_epoch = 0
+            for epoch in range(1, n_epochs + 1):
+                last_epoch = epoch
+                model.train()
+                tl, tn = 0.0, 0
+                for batch in train_loader:
+                    batch = batch.to(self.device)
+                    optimizer.zero_grad()
+                    mean, log_var = model(batch.x, batch.edge_index)
+                    n_seed = batch.batch_size
+                    y = batch.y[:n_seed].squeeze()
+                    if loss_kind == "mse":
+                        loss = nn.MSELoss()(mean[:n_seed], y)
+                    else:
+                        loss = gaussian_nll_loss(mean[:n_seed], log_var[:n_seed], y)
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                    optimizer.step()
+                    tl += loss.item()*n_seed; tn += n_seed
+                train_loss = tl / max(tn, 1)
+
+                model.eval()
+                vl_t, vl_n = 0.0, 0
+                with torch.no_grad():
+                    for batch in val_loader:
+                        batch = batch.to(self.device)
+                        mean, lv = model(batch.x, batch.edge_index)
+                        n_seed = batch.batch_size
+                        y = batch.y[:n_seed].squeeze()
+                        if loss_kind == "mse":
+                            vl = nn.MSELoss()(mean[:n_seed], y)
+                        else:
+                            vl = gaussian_nll_loss(mean[:n_seed], lv[:n_seed], y)
+                        vl_t += vl.item()*n_seed; vl_n += n_seed
+                val_loss = vl_t / max(vl_n, 1)
+                scheduler.step()
+                self.history["epoch"].append(epoch if stage_name=="STAGE 1"
+                                             else s1_epochs+epoch)
+                self.history["train_loss"].append(train_loss)
+                self.history["val_loss"].append(val_loss)
+                if epoch % 10 == 0 or epoch == 1:
+                    print(f"  {epoch:>6}  {train_loss:>12.4f}  {val_loss:>10.4f}")
+                if stopper.step(val_loss, model):
+                    print(f"\n  Early stopping at epoch {epoch} "
+                          f"(best={stopper.best_loss:.4f})")
+                    break
+            stopper.restore_best(model)
+            print(f"  {stage_name} done: {(time.time()-t0)/60:.1f} min  "
+                  f"best_val={stopper.best_loss:.4f}")
+            return stopper.best_loss, last_epoch
+
+        # STAGE 1 — MSE on everything
+        s1_loss, _ = run_stage("STAGE 1", s1_epochs, "mse",
+                               list(model.parameters()))
+        # STAGE 2 — freeze mean, NLL on variance head only
+        self._freeze_mean_head()
+        s2_loss, last = run_stage("STAGE 2", s2_epochs, "gaussian_nll",
+                                  list(model.parameters()))
+
+        return {
+            "history":       pd.DataFrame(self.history),
+            "best_val_loss": s2_loss,
+            "epochs_run":    s1_epochs + last,
         }
 
     def mc_dropout_predict(
