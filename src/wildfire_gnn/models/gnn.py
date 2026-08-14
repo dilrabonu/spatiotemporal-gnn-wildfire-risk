@@ -111,7 +111,7 @@ class GaussianNLLHead(nn.Module):
         mean    = self.mean_head(x).squeeze(-1)
         log_var = self.logvar_head(x).squeeze(-1)
         # Clamp log_var for numerical stability
-        log_var = torch.clamp(log_var, min=-10.0, max=10.0)
+        log_var = torch.clamp(log_var, min=-7.0, max=3.0)
         return mean, log_var
 
 
