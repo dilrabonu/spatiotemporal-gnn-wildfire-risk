@@ -135,11 +135,12 @@ model:
 # ── Uncertainty ────────────────────────────────────────────────────────────
 uncertainty:
   mc_samples:           30
-  loss_function:        mse
+  loss_function:        gaussian_nll
   calibration_method:   temperature_scaling
   ece_n_bins:           15
   target_ece:           0.05
-
+  two_stage:            true
+  
 # ── Training ───────────────────────────────────────────────────────────────
 training:
   stage:                stage1
@@ -155,6 +156,8 @@ training:
   gradient_clip:        1.0
   seed:                 42
   nll_warmup_epochs:    10
+  stage1_epochs:        200
+  stage2_epochs:        60
 
 # ── Evaluation ─────────────────────────────────────────────────────────────
 evaluation:
