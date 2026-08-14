@@ -7,7 +7,6 @@ Changes vs original:
   - patience/min_delta updated for longer training
   - edge_attr passed to models that support it
 """
-
 from __future__ import annotations
 import time
 import pickle
@@ -28,30 +27,12 @@ from wildfire_gnn.evaluation.metrics import (
 )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Loss functions
-# ════════════════════════════════════════════════════════════════════════════
-
 def weighted_mse_loss(
     pred:         Tensor,
     target:       Tensor,
     weight_power: float = 1.5,
 ) -> Tensor:
-    """
-    Weighted MSE — amplifies gradient for high burn-probability cells.
-
-    Standard MSE treats a cell with BP=0.001 the same as BP=0.20.
-    Weighted MSE gives (BP=0.20)^power / (BP=0.001)^power = 200× more
-    gradient to the high-risk cell, which is operationally correct.
-
-    weight_power=1.5 is a conservative starting point.
-    weight_power=2.0 is more aggressive (use if high-risk MAE is still poor).
-
-    Formula:
-        w_i = (|target_i| + eps)^power
-        w_i = w_i / mean(w)           # normalise so mean weight = 1
-        loss = mean(w_i * (pred_i - target_i)^2)
-    """
+    """Weighted MSE — amplifies gradient for high burn-probability cells."""
     weights = (target.abs() + 1e-6).pow(weight_power)
     weights = weights / weights.mean()
     return (weights * (pred - target).pow(2)).mean()
@@ -81,11 +62,7 @@ class EarlyStopping:
 
 
 class GNNPipeline:
-    """
-    Memory-safe GNN pipeline — NeighborLoader mini-batches.
-    Improvements: weighted MSE, positional encoding support,
-    edge_attr support, longer patience.
-    """
+    """Memory-safe GNN pipeline — NeighborLoader mini-batches."""
 
     def __init__(self, config: dict):
         self.config  = config
@@ -119,7 +96,6 @@ class GNNPipeline:
         t_cfg      = self.config["training"]
         if self.model is None:
             self.build_model()
-
         model      = self.model
         epochs     = t_cfg.get("epochs", 300)
         lr         = t_cfg.get("lr", 1e-3)
@@ -132,7 +108,9 @@ class GNNPipeline:
                          "loss_function", "weighted_mse")
         weight_pwr = float(t_cfg.get("weight_power", 1.5))
 
-        # Read neighbors from config
+        # <<< CHANGED: NLL warmup control (freeze log_var=0 for first N epochs)
+        warmup_epochs = int(t_cfg.get("nll_warmup_epochs", 10))
+
         num_layers  = self.config["model"].get("num_layers", 2)
         neighbors_cfg = t_cfg.get("neighbors", None)
         if neighbors_cfg and isinstance(neighbors_cfg, list):
@@ -169,10 +147,18 @@ class GNNPipeline:
         print(f"  batch_size={batch_size}  neighbors={num_neighbors_train}")
         print(f"  epochs={epochs}  patience={patience}  "
               f"min_delta={min_delta}  loss={loss_fn}")
+        # <<< CHANGED: report warmup
+        if loss_fn == "gaussian_nll":
+            print(f"  nll_warmup_epochs={warmup_epochs} "
+                  f"(variance frozen at 0 during warmup)")
         print(f"\n  {'Epoch':>6}  {'Train Loss':>12}  {'Val Loss':>10}")
         print(f"  {'-'*35}")
 
-        def compute_loss(pred, lv, target):
+        # <<< CHANGED: compute_loss now takes epoch, and freezes variance in warmup
+        def compute_loss(pred, lv, target, epoch):
+            if loss_fn == "gaussian_nll" and epoch <= warmup_epochs:
+                lv_eff = torch.zeros_like(lv)      # variance frozen => trains like MSE
+                return gaussian_nll_loss(pred, lv_eff, target)
             if loss_fn == "gaussian_nll":
                 return gaussian_nll_loss(pred, lv, target)
             elif loss_fn == "weighted_mse":
@@ -190,9 +176,10 @@ class GNNPipeline:
                 optimizer.zero_grad()
                 mean, log_var = model(batch.x, batch.edge_index)
                 n_seed  = batch.batch_size
+                # <<< CHANGED: pass epoch
                 loss    = compute_loss(
                     mean[:n_seed], log_var[:n_seed],
-                    batch.y[:n_seed].squeeze()
+                    batch.y[:n_seed].squeeze(), epoch
                 )
                 loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
@@ -209,9 +196,10 @@ class GNNPipeline:
                     batch    = batch.to(self.device)
                     mean, lv = model(batch.x, batch.edge_index)
                     n_seed   = batch.batch_size
+                    # <<< CHANGED: pass epoch
                     vl       = compute_loss(
                         mean[:n_seed], lv[:n_seed],
-                        batch.y[:n_seed].squeeze()
+                        batch.y[:n_seed].squeeze(), epoch
                     )
                     vl_total += vl.item() * n_seed
                     vl_n     += n_seed
@@ -226,7 +214,8 @@ class GNNPipeline:
             if epoch % 10 == 0 or epoch == 1:
                 print(f"  {epoch:>6}  {train_loss:>12.4f}  {val_loss:>10.4f}")
 
-            if stopper.step(val_loss, model):
+            # <<< CHANGED: don't early-stop during warmup (loss scale changes at warmup end)
+            if epoch > warmup_epochs and stopper.step(val_loss, model):
                 print(f"\n  Early stopping at epoch {epoch}  "
                       f"(best val_loss={stopper.best_loss:.4f})")
                 break
@@ -314,7 +303,6 @@ class GNNPipeline:
             "y_true_bp": y_true_bp,
             "y_pred_bp": y_pred_bp,
         }
-
         if verbose:
             print(f"\n  ── {metrics['model']} (test split) ──")
             print(f"    R²       = {metrics['r2']:>8.4f}")
