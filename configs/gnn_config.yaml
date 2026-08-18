@@ -92,9 +92,9 @@ split:
   method:               geographic_block
   axis:                 row
   # Row ranges in ORIGINAL raster space (7597 total rows)
-  train_rows:           [0, 1327]        # northern Greece + islands (≈88% of nodes)
-  val_rows:             [1328, 1517]     # narrow validation band  (≈4% of nodes)
-  test_rows:            [1518, 7596]     # southern Greece + Aegean + Crete (≈8% of nodes)
+  train_rows:           [0, 4200]        # northern Greece + islands (72.5% of nodes, 237,304)
+  val_rows:             [4201, 4800]     # narrow validation band (9.9%, 32,570)
+  test_rows:            [4801, 7597]     # southern Greece + Aegean + Crete (17.6%, 57,531)
   # Expected node counts AFTER subsampling (~300k total):
   train_n:              264000           # approximate — assert > 240000
   val_n:                12000            # approximate — assert > 5000

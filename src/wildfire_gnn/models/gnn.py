@@ -149,8 +149,8 @@ class GATWildfire(nn.Module):
     ----------
     in_channels  : 61 (graph.num_node_features)
     hidden       : 256
-    num_layers   : 4
-    heads        : 8 (attention heads)
+    num_layers   : 2
+    heads        : 4 (attention heads)
     dropout      : 0.3 (also used for MC Dropout at inference)
     head_type    : "gaussian_nll" (default, existing behaviour) or
                    "regression" (Phase 5C vanilla baseline, MSE point predictor)
