@@ -1,0 +1,2 @@
+model,r2,mae,spearman,brier,ece,n_test,fit_predict_seconds,epochs_requested,batch_size,patch_radius,device,n_train,n_val
+2D CNN (spatial),0.7187246803089531,0.012349366554327505,0.8797658021851112,0.0003924833267743551,0.005095885523937616,57531,227.6,30,512,3,cpu,237304,32570

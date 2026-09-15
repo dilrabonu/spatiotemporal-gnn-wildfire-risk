@@ -56,3 +56,6 @@ dist/
 .vscode/
 .idea/dem_env/
 dem_env/
+
+*.csv
+!reports/tables/*.csv    
