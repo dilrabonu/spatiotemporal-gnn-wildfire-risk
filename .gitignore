@@ -18,6 +18,10 @@ reports/logs/
 mlruns/
 wandb/
 
+# Figures
+reports/figures/
+reports/paper_figures2/
+
 # Python
 __pycache__/
 *.py[codz]
