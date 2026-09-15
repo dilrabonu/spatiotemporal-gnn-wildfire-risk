@@ -1,7 +1,4 @@
 # ── Master config for wildfire-uncertainty-gnn ────────────────────────────
-# Updated after Phase 2 completion 
-# Phase 2 confirmed: 11,789,754 valid cells across full Greece raster
-# Phase 3 strategy: spatial grid subsampling → ~300,000 nodes for GPU feasibility
 # All paths relative to project root.
 
 # ── Paths ─────────────────────────────────────────────────────────────────
@@ -65,20 +62,19 @@ graph:
   sampling_strategy:    spatial_grid      # spatial_grid | full | random
   sample_stride:        6                 # keep every 6th valid cell (row and col)
   n_nodes_full:         11789754          # full valid cell count from Phase 2
-  n_nodes:              300000            # target after spatial grid subsampling (≈300k)
+  n_nodes:              300000            # target ≈300k; actual after stride-6 subsampling = 327,405
   # After sampling, assert abs(graph.num_nodes - 300000) < 10000
 
   connectivity:         8                 # 8-neighbor pixel grid edges
-  node_features:        61                # actual graph features: 58 expected + 3 extra fuel categories
-  # 58 = 4 base rasters + 5 DEM terrain + 21 fuel one-hot + 3 interactions
-  #     + 18 multi-scale stats + 6 spatial gradients + 1 degree = 58
-  # NOTE: if DEM unavailable → 53 features (no 5 terrain features)
+  node_features:        61
+  # 61 = 4 base rasters + 5 DEM terrain + 24 fuel one-hot + 3 interactions
+  #    + 18 multi-scale stats + 6 spatial gradients + 1 degree = 61
   node_features_no_dem: 56   # 61 - 5 DEM features, if DEM unavailable
 
   feature_groups:
     base_rasters:       [CFL, FSP_Index, Ignition_Prob, Struct_Exp_Index]  # 4
     dem_terrain:        [dem_elevation_m, dem_slope_deg, dem_aspect_sin, dem_aspect_cos, dem_twi]  # 5
-    fuel_onehot:        true             # 21 one-hot columns
+    fuel_onehot:        true             # 24 one-hot columns (Scott-Burgan categories in Greece)
     interactions:       true             # 3 interaction terms (CFL×Ignition, FSP×CFL, Ignition×FSP)
     multiscale_stats:   [3, 7, 15]       # 6 stats (mean+std) × 3 kernels = 18 features
     spatial_gradients:  true             # 6 gradient features (dx,dy for 3 features)
@@ -161,7 +157,7 @@ training:
 
 # ── Evaluation ─────────────────────────────────────────────────────────────
 evaluation:
-  metrics:              [r2, mae, spearman, ece, brier]
+  metrics:              [r2, mae, spearman, ece]   # brier computed internally as MSE, not reported
   binned_by_quantile:   true
   n_quantile_bins:      5
   inverse_transform:    true
@@ -169,14 +165,14 @@ evaluation:
 # ── Intervention ───────────────────────────────────────────────────────────
 intervention:
   scenarios:
-    - name:   fuel_reduction_30pct
+    - name:   firebreak_strip
       feature: CFL
-      delta:  -0.30
+      delta:  -1.0
       region: null
     - name:   firebreak_strip
       feature: CFL
       delta:  -1.0
-      region: [800, 900, 0, 7554]       # full-width horizontal strip
+      region: [5000, 5100, 0, 7554]     # 100-row horizontal strip in southern test fold
     - name:   ignition_suppression
       feature: Ignition_Prob
       delta:  -0.50

@@ -26,17 +26,14 @@ scales them all consistently:
     interact_CFL_Ignition × 0.50
     interact_Ignition_FSP × 0.50
 
-  Firebreak:
-    All CFL-derived features → 0.0 in strip rows
-    (same column set as fuel reduction)
+  Firebreak-strip proxy: set ALL CFL-derived features to 0 within the strip.
 
-USAGE
------
-    conda activate wildfire-gnn
-    cd spatiotemporal_wildfire_gnn
-    python scripts/phase5d_intervention_v2.py
-    python scripts/phase5d_intervention_v2.py --arch GAT
-    python scripts/phase5d_make_figures_v2.py --arch GAT
+    Note on scope: CFL (conditional flame length) is a simulation OUTPUT, not a
+    landscape input. Zeroing the CFL-derived feature group is therefore a proxy
+    for a firebreak / complete fuel treatment, and is reported as a sensitivity
+    analysis rather than a strict causal intervention (see paper, Section on
+    Counterfactual Intervention Analysis).
+
 """
 
 from __future__ import annotations
@@ -91,10 +88,6 @@ def parse_args():
     p.add_argument("--firebreak-row-max", type=int, default=5100)
     return p.parse_args()
 
-
-# ════════════════════════════════════════════════════════════════════════════
-# Feature column discovery
-# ════════════════════════════════════════════════════════════════════════════
 
 def find_related_columns(
     keywords:      list[str],
@@ -188,10 +181,6 @@ def print_feature_change_summary(
         print(f"  {name:<35} {orig_mean:>14.4f} {new_mean:>14.4f} {change:>7.1f}%")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Model and data loading
-# ════════════════════════════════════════════════════════════════════════════
-
 def load_model(arch: str) -> torch.nn.Module | None:
     ckpt_name = f"phase5a_{arch.lower()}_best.pt"
     ckpt_path = ARCHIVE_DIR / ckpt_name
@@ -206,8 +195,8 @@ def load_model(arch: str) -> torch.nn.Module | None:
         architecture = arch,
         in_channels  = m_cfg["in_channels"],
         hidden       = m_cfg["hidden_channels"],
-        num_layers   = m_cfg.get("num_layers", 4),
-        heads        = m_cfg.get("heads", 8),
+        num_layers   = m_cfg.get("num_layers", 2),
+        heads        = m_cfg.get("heads", 4),
         dropout      = m_cfg.get("dropout", 0.3),
     )
     model.load_state_dict(ckpt["model_state"])
@@ -243,9 +232,6 @@ def save_effects(arch: str, scenario_key: str, effect: dict) -> None:
     print(f"  ✓  Saved: {out.name}  ({size_mb:.1f} MB)")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Intervention scenarios (v2 — all derived features)
-# ════════════════════════════════════════════════════════════════════════════
 
 def scenario_fuel_reduction(
     model, graph, transformer, feature_names, n_mc, temperature, mc_orig
@@ -378,10 +364,6 @@ def scenario_ignition_suppression(
     )
     return effect, summary
 
-
-# ════════════════════════════════════════════════════════════════════════════
-# Main
-# ════════════════════════════════════════════════════════════════════════════
 
 def main():
     args = parse_args()

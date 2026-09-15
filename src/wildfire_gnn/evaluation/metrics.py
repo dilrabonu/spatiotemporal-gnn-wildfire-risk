@@ -14,18 +14,15 @@ Primary (for model ranking):
   Spearman ρ — rank correlation (robust to outliers, good for skewed targets)
 
 Calibration (for Gap 2):
-  ECE        — Expected Calibration Error (requires uncertainty estimates)
-  Brier Score — proper scoring rule for probabilistic predictions
+  ECE        — Expected Calibration Error (regression-adapted; see function)
+
+Internal diagnostic:
+  brier_score — mean squared error on the BP scale; duplicates MAE
 
 Binned (for Gap 1 — high-risk tail matters most):
   R² and MAE per quintile of burn probability
   The highest quintile (BP > Q80) is the most important for management
 
-CRITICAL RULE
--------------
-ALWAYS apply inverse_transform before computing metrics.
-Report metrics on the ORIGINAL burn probability scale, not the
-quantile-transformed scale. R² on transformed scale ≠ R² on BP scale.
 """
 
 from __future__ import annotations
@@ -119,15 +116,16 @@ def spearman_rho(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
-    Brier Score — mean squared error for probabilistic predictions.
+    Mean squared error on the burn-probability scale.
 
-    BS = (1/N) Σ (p_pred - y_true)²
-    Range: [0, 1]. Lower is better. 0 = perfect.
+    BS = (1/N) Σ (y_pred - y_true)²
 
-    For burn probability: y_true ∈ [0, 0.25], y_pred ∈ [0, 0.25].
-    The Brier score rewards both accuracy AND calibration simultaneously.
-    An overconfident model that always predicts 0.5 when truth is 0.024
-    will have a very high Brier score.
+    NOTE: On a continuous regression target this quantity is the mean squared
+    error, not a Brier score in the strict classification sense (the Brier
+    score is defined for binary/probabilistic outcomes). It is retained here
+    only as an internal diagnostic and duplicates the information in MAE; it is
+    NOT reported in the paper. The paper reports R², MAE, Spearman, and ECE.
+    Kept for backward compatibility with existing evaluation scripts.
     """
     y_true = np.asarray(y_true).ravel()
     y_pred = np.clip(np.asarray(y_pred).ravel(), 0.0, 1.0)
