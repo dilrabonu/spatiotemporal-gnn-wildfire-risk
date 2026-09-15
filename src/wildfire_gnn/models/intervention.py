@@ -1,63 +1,6 @@
 """
 Counterfactual Intervention Analysis — Phase 5D.
 
-WHY THIS IS THE MOST IMPORTANT PHASE FOR PUBLICATION
-------------------------------------------------------
-Every prior wildfire ML paper asks: "Can we predict burn probability?"
-No prior paper asks: "What happens to burn probability if we intervene?"
-
-This phase introduces COUNTERFACTUAL REASONING to wildfire prediction:
-  - What if we reduced Crown Fire Likelihood (CFL) by 30% through fuel treatment?
-  - What if we added a firebreak (CFL = 0) across a landscape strip?
-  - What if we suppressed ignition sources by 50%?
-
-The GNN answers these questions by modifying graph node features and
-re-running inference. This is possible ONLY with a graph model — XGBoost
-and CNN cannot propagate intervention effects through spatial topology.
-
-SCIENTIFIC NOVELTY
-------------------
-When we reduce CFL in cell A, the GAT also sees the effect in cells B,C,D
-that are spatially connected to A — because their neighborhood features
-change. This spatial propagation of intervention effects through the graph
-is what makes GNN intervention analysis fundamentally different from:
-  - Simply computing f(x_modified) in XGBoost (no propagation)
-  - CNN: propagation is local (fixed 7×7 kernel), no topology awareness
-  - GNN: propagation follows the actual fire-risk network topology
-
-UNCERTAINTY IN INTERVENTION EFFECTS
-------------------------------------
-The intervention effect delta_y = y_new - y_orig is reported WITH
-calibrated uncertainty bounds (using T=0.643 from Phase 5B):
-
-  delta_y ± uncertainty(delta_y)
-
-This allows statements like:
-  "Fuel reduction (30% CFL) reduces burn probability by 0.008 ± 0.003
-   (90% PI: [-0.014, -0.002]) in the treated region."
-
-THREE INTERVENTION SCENARIOS
------------------------------
-1. fuel_reduction_30pct
-   - Reduce CFL by 30% across all nodes (or a target region)
-   - Models systematic fuel treatment programme
-   - Expected effect: moderate BP reduction in high-CFL areas
-
-2. firebreak_strip
-   - Set CFL to 0 in a horizontal raster row band
-   - Models a physical firebreak across the landscape
-   - Expected effect: local BP reduction within strip + edge effects
-
-3. ignition_suppression_50pct
-   - Reduce Ignition_Prob by 50% across all nodes
-   - Models improved fire detection + suppression response
-   - Expected effect: BP reduction, especially in high-ignition areas
-
-FEATURE INDEX LOOKUP
---------------------
-Feature indices depend on graph.feature_names.json from Phase 3.
-The intervention module looks up feature names → indices at runtime.
-This is robust to any feature order changes.
 """
 
 from __future__ import annotations
